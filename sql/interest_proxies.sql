@@ -1,4 +1,4 @@
---helper logic to map state names to msa's
+--market lookup
 CREATE TABLE market_lookup AS
 SELECT * FROM (
     VALUES
@@ -15,13 +15,13 @@ SELECT * FROM (
         ('valkyries', 'San Francisco-Oakland-Fremont, CA')
 ) AS t(market_key, market_msa);
 
---reformatting (unmpivoting) combined_trends_x csv's for analysis
+-- unpivot league level interest
 CREATE TABLE league_interest_long AS
 SELECT
     Week,
     market_key,
     interest_league
-FROM combined_trends_wnba
+FROM read_csv_auto('built/combined_trends_wnba.csv')
 UNPIVOT (
     interest_league FOR market_key IN (
         indiana,
@@ -32,15 +32,19 @@ UNPIVOT (
         illinois,
         georgia,
         texas,
-        washington
+        washington,
+        sparks,
+        valkyries
     )
 );
+
+-- unpivot team level interest
 CREATE TABLE team_interest_long AS
 SELECT
     Week,
     market_key,
     interest_team
-FROM combined_trends_team
+FROM read_csv_auto('built/combined_trends_team.csv')
 UNPIVOT (
     interest_team FOR market_key IN (
         indiana,
@@ -56,12 +60,14 @@ UNPIVOT (
         valkyries
     )
 );
+
+-- unpivot player level interest
 CREATE TABLE player_interest_long AS
 SELECT
     Week,
     market_key,
     interest_player
-FROM combined_trends_player
+FROM read_csv_auto('built/combined_trends_player.csv')
 UNPIVOT (
     interest_player FOR market_key IN (
         indiana,
@@ -78,7 +84,7 @@ UNPIVOT (
     )
 );
 
--- building the actual interst_proxies csv
+-- build interest_proxies
 CREATE TABLE interest_proxies AS
 SELECT
     l.Week,
@@ -86,14 +92,19 @@ SELECT
     l.interest_league,
     t.interest_team,
     p.interest_player,
-    d.pop_total,
-    d.median_income
+    CAST(d.pop_total AS DOUBLE) AS pop_total,
+    CAST(
+        REPLACE(REPLACE(d.median_income, '$', ''), ',', '')
+        AS DOUBLE
+    ) AS median_income
 FROM league_interest_long l
 LEFT JOIN team_interest_long t
-    ON l.Week = t.Week AND l.market_key = t.market_key
+    ON l.Week = t.Week
+   AND l.market_key = t.market_key
 LEFT JOIN player_interest_long p
-    ON l.Week = p.Week AND l.market_key = p.market_key
+    ON l.Week = p.Week
+   AND l.market_key = p.market_key
 LEFT JOIN market_lookup m
     ON l.market_key = m.market_key
-LEFT JOIN read_csv_auto('market_demographics.csv') d
+LEFT JOIN read_csv_auto('built/market_demographics.csv') d
     ON m.market_msa = d.msa;

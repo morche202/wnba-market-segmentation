@@ -42,3 +42,17 @@ SELECT
     -- Final missed revenue opportunity score
     interest_pc_norm * income_norm AS missed_revenue_score
 FROM normalized;
+
+CREATE TABLE team_interest_summary AS
+SELECT
+    market_msa,
+    AVG(interest_team) AS avg_team_interest
+FROM interest_proxies
+GROUP BY market_msa;
+
+CREATE TABLE attendance_normalized AS
+SELECT
+    team,
+    Average AS avg_attendance,
+    Average / MAX(Average) OVER () AS attendance_norm
+FROM read_csv_auto('built/wnba-attendance.csv');
